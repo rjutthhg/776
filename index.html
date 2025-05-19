@@ -1,0 +1,63 @@
+// Ограничиваем радиус джойстика (макс 40px)
+    const maxDist = 40;
+    const dist = Math.min(Math.sqrt(dx*dx + dy*dy), maxDist);
+    const angle = Math.atan2(dy, dx);
+
+    const stickX = 25 + dist * Math.cos(angle);
+    const stickY = 25 + dist * Math.sin(angle);
+    stick.style.left = ${stickX}px;
+    stick.style.top = ${stickY}px;
+
+    // Нормируем движение для управления
+    moveX = (dist / maxDist) * Math.cos(angle);
+    moveZ = (dist / maxDist) * Math.sin(angle);
+  });
+
+  // Кнопка прыжка
+  const jumpBtn = document.getElementById('jumpBtn');
+  jumpBtn.addEventListener('click', () => {
+    if (isOnGround) {
+      velocityY = 0.15;
+      isOnGround = false;
+    }
+  });
+
+  // Анимация
+  function animate() {
+    requestAnimationFrame(animate);
+
+    // Обновляем позицию по X и Z
+    human.position.x += moveX * 0.1;
+    human.position.z += moveZ * 0.1;
+
+    // Прыжок + гравитация
+    if (!isOnGround) {
+      velocityY -= 0.01;
+      human.position.y += velocityY;
+      if (human.position.y <= 0) {
+        human.position.y = 0;
+        velocityY = 0;
+        isOnGround = true;
+      }
+    }
+
+    // Камера следует за человечком (сзади и чуть сверху)
+    camera.position.x = human.position.x;
+    camera.position.z = human.position.z + 10;
+    camera.position.y = human.position.y + 5;
+    camera.lookAt(human.position);
+
+    renderer.render(scene, camera);
+  }
+
+  animate();
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+</script>
+
+</body>
+</html>

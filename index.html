@@ -1,0 +1,140 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Моя Игра</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+    #joystickArea {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      width: 100px;
+      height: 100px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 50%;
+      touch-action: none;
+    }
+    #stick {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      background: rgba(255,255,255,0.8);
+      border-radius: 50%;
+      left: 25px;
+      top: 25px;
+      touch-action: none;
+    }
+    #jumpBtn {
+      position: absolute;
+      bottom: 30px;
+      right: 30px;
+      width: 60px;
+      height: 60px;
+      background: #ff5;
+      border-radius: 50%;
+      font-size: 18px;
+      border: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="joystickArea"><div id="stick"></div></div>
+<button id="jumpBtn">⬆️</button>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
+<script>
+  let scene = new THREE.Scene();
+  let camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  let renderer = new THREE.WebGLRenderer();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  let ground = new THREE.Mesh(new THREE.BoxGeometry(50, 1, 50), new THREE.MeshBasicMaterial({ color: 0x228B22 }));
+  ground.position.y = -0.5;
+  scene.add(ground);
+
+  let human = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshBasicMaterial({ color: 0xffa500 }));
+  human.position.y = 1;
+  scene.add(human);
+
+  camera.position.set(0, 5, 10);
+  camera.lookAt(human.position);
+
+  let moveX = 0, moveZ = 0;
+  let velocityY = 0;
+  let isOnGround = true;
+
+  const joystick = document.getElementById('joystickArea');
+  const stick = document.getElementById('stick');
+
+  joystick.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = joystick.getBoundingClientRect();
+    const dx = touch.clientX - (rect.left + rect.width / 2);
+    const dy = touch.clientY - (rect.top + rect.height / 2);
+    const maxDist = 40;
+    const dist = Math.min(Math.sqrt(dx * dx + dy * dy), maxDist);
+    const angle = Math.atan2(dy, dx);
+
+    const stickX = 25 + dist * Math.cos(angle);
+    const stickY = 25 + dist * Math.sin(angle);
+    stick.style.left = `${stickX}px`;
+    stick.style.top = `${stickY}px`;
+
+    moveX = (dist / maxDist) * Math.cos(angle);
+    moveZ = (dist / maxDist) * Math.sin(angle);
+  });
+
+  joystick.addEventListener('touchend', () => {
+    moveX = 0;
+    moveZ = 0;
+    stick.style.left = '25px';
+    stick.style.top = '25px';
+  });
+
+  document.getElementById('jumpBtn').addEventListener('click', () => {
+    if (isOnGround) {
+      velocityY = 0.15;
+      isOnGround = false;
+    }
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    human.position.x += moveX * 0.1;
+    human.position.z += moveZ * 0.1;
+
+    if (!isOnGround) {
+      velocityY -= 0.01;
+      human.position.y += velocityY;
+      if (human.position.y <= 1) {
+        human.position.y = 1;
+        velocityY = 0;
+        isOnGround = true;
+      }
+    }
+
+    camera.position.x = human.position.x;
+    camera.position.z = human.position.z + 10;
+    camera.position.y = human.position.y + 5;
+    camera.lookAt(human.position);
+
+    renderer.render(scene, camera);
+  }
+
+  animate();
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+</script>
+</body>
+</html>

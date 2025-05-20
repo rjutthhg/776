@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Mini Roblox Style Game</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    #joystick { position: fixed; bottom: 20px; left: 20px; width: 100px; height: 100px; background: rgba(0,0,0,0.2); border-radius: 50%; touch-action: none; }
+    #stick { position: absolute; width: 50px; height: 50px; background: #fff; border-radius: 50%; left: 25px; top: 25px; }
+    #jumpBtn { position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px; border-radius: 50%; background: orange; font-weight: bold; font-size: 18px; }
+    #lives { position: fixed; top: 10px; left: 10px; color: white; font-size: 20px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 5px; }
+  </style>
+</head>
+<body>
+
+<div id="joystick"><div id="stick"></div></div>
+<button id="jumpBtn">↑</button>
+<div id="lives">Жизни: 3</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
+<script>
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87ceeb);
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  const platform = new THREE.Mesh(new THREE.BoxGeometry(50, 1, 50), new THREE.MeshStandardMaterial({ color: 0x228822 }));
+  platform.position.y = -0.5;
+  scene.add(platform);
+
+  const light = new THREE.DirectionalLight(0xffffff, 1);
+  light.position.set(10, 20, 10);
+  scene.add(light);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+  // Персонаж
+  const human = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffcc99 });
+  const limbMat = new THREE.MeshStandardMaterial({ color: 0x3333ff });
+  const head = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), bodyMat);
+  head.position.y = 3.5;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1.5, 0.5), bodyMat);
+  body.position.y = 2.25;
+  const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1, 0.4), limbMat);
+  leftArm.position.set(-0.8, 2.5, 0);
+  const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1, 0.4), limbMat);
+  rightArm.position.set(0.8, 2.5, 0);
+  const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1, 0.4), limbMat);
+  leftLeg.position.set(-0.3, 1, 0);
+  const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1, 0.4), limbMat);
+  rightLeg.position.set(0.3, 1, 0);
+  human.add(head, body, leftArm, rightArm, leftLeg, rightLeg);
+  scene.add(human);
+
+  let moveX = 0, moveZ = 0;
+  let velocityY = 0;
+  let isOnGround = true;
+  let lives = 3;
+  const spawnPoint = new THREE.Vector3(0, 1.8, 0);
+  let cameraDistance = 10, minCamDist = 5, maxCamDist = 20;
+  let walkCycle = 0;
+  let camAngle = 0, isDraggingCam = false, prevX = 0;
+
+  const stick = document.getElementById('stick');
+  const joystick = document.getElementById('joystick');
+  joystick.addEventListener('touchmove', (e) => {
+    const touch = e.touches[0];
+    const rect = joystick.getBoundingClientRect();
+    const dx = touch.clientX - (rect.left + 50);
+    const dy = touch.clientY - (rect.top + 50);
+    const maxDist = 40;
+    const dist = Math.min(Math.sqrt(dx*dx + dy*dy), maxDist);
+    const angle = Math.atan2(dy, dx);
+    const stickX = 25 + dist * Math.cos(angle);
+    const stickY = 25 + dist * Math.sin(angle);
+    stick.style.left = `${stickX}px`;
+    stick.style.top = `${stickY}px`;
+    moveX = (dist / maxDist) * Math.cos(angle);
+    moveZ = (dist / maxDist) * Math.sin(angle);
+  });
+  joystick.addEventListener('touchend', () => {
+    stick.style.left = '25px';
+    stick.style.top = '25px';
+    moveX = 0;
+    moveZ = 0;
+  });
+
+  document.getElementById('jumpBtn').addEventListener('click', () => {
+    if (isOnGround) {
+      velocityY = 0.15;
+      isOnGround = false;
+    }
+  });
+
+  const livesEl = document.getElementById('lives');
+  function updateLivesDisplay() {
+    livesEl.textContent = 'Жизни: ' + lives;
+  }
+  function respawn() {
+    if (lives <= 0) return;
+    human.position.copy(spawnPoint);
+    velocityY = 0;
+    isOnGround = true;
+  }
+
+  window.addEventListener('pointerdown', e => { isDraggingCam = true; prevX = e.clientX; });
+  window.addEventListener('pointermove', e => {
+    if (isDraggingCam) {
+      const dx = e.clientX - prevX;
+      prevX = e.clientX;
+      camAngle -= dx * 0.005;
+    }
+  });
+  window.addEventListener('pointerup', () => isDraggingCam = false);
+
+  let lastDist = null;
+  window.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (lastDist !== null) {
+        const delta = dist - lastDist;
+        cameraDistance -= delta * 0.01;
+        cameraDistance = Math.max(minCamDist, Math.min(maxCamDist, cameraDistance));
+      }
+      lastDist = dist;
+    }
+  });
+  window.addEventListener('touchend', () => lastDist = null);
+
+  function animate() {
+    requestAnimationFrame(animate);
+    human.position.x += moveX * 0.1;
+    human.position.z += moveZ * 0.1;
+    if (!isOnGround) {
+      velocityY -= 0.01;
+      human.position.y += velocityY;
+      if (human.position.y <= 1.8) {
+        human.position.y = 1.8;
+        velocityY = 0;
+        isOnGround = true;
+      }
+    }
+    if (human.position.y < -10) {
+      lives--;
+      updateLivesDisplay();
+      if (lives > 0) respawn();
+      else alert("Игра окончена!");
+    }
+    if (moveX !== 0 || moveZ !== 0) {
+      walkCycle += 0.2;
+      leftArm.rotation.x = Math.sin(walkCycle) * 0.5;
+      rightArm.rotation.x = -Math.sin(walkCycle) * 0.5;
+      const targetRot = Math.atan2(moveX, moveZ);
+      human.rotation.y += (targetRot - human.rotation.y) * 0.15;
+    } else {
+      leftArm.rotation.x *= 0.8;
+      rightArm.rotation.x *= 0.8;
+    }
+    if (!isOnGround) {
+      leftArm.rotation.z = -0.8;
+      rightArm.rotation.z = 0.8;
+    } else {
+      leftArm.rotation.z *= 0.9;
+      rightArm.rotation.z *= 0.9;
+    }
+    const camX = human.position.x + Math.sin(camAngle) * cameraDistance;
+    const camZ = human.position.z + Math.cos(camAngle) * cameraDistance;
+    camera.position.set(camX, human.position.y + 5, camZ);
+    camera.lookAt(human.position);
+    renderer.render(scene, camera);
+  }
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  updateLivesDisplay();
+  animate();
+</script>
+</body>
+</html>

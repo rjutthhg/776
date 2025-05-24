@@ -1,140 +1,75 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Моя Игра</title>
+  <title>Telegram Mini App</title>
   <style>
-    body { margin: 0; overflow: hidden; }
-    canvas { display: block; }
-    #joystickArea {
-      position: absolute;
-      bottom: 20px;
-      left: 20px;
-      width: 100px;
-      height: 100px;
-      background: rgba(0,0,0,0.2);
-      border-radius: 50%;
-      touch-action: none;
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0; padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      position: relative;
+      background: #f0f8ff;
     }
-    #stick {
+    #user-info {
       position: absolute;
-      width: 50px;
-      height: 50px;
-      background: rgba(255,255,255,0.8);
-      border-radius: 50%;
-      left: 25px;
-      top: 25px;
-      touch-action: none;
+      top: 20px;
+      right: 20px;
+      padding: 10px 15px;
+      border: 2px solid #0078d4;
+      border-radius: 15px;
+      background-color: #e1f0ff;
+      font-weight: bold;
+      display: none;
+      user-select: none;
     }
-    #jumpBtn {
-      position: absolute;
-      bottom: 30px;
-      right: 30px;
-      width: 60px;
-      height: 60px;
-      background: #ff5;
-      border-radius: 50%;
+    #warning {
+      color: red;
       font-size: 18px;
-      border: none;
+      text-align: center;
     }
   </style>
 </head>
 <body>
+  <div id="user-info"></div>
+  <div id="warning"></div>
 
-<div id="joystickArea"><div id="stick"></div></div>
-<button id="jumpBtn">⬆️</button>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script>
+    const tg = window.Telegram.WebApp;
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
-<script>
-  let scene = new THREE.Scene();
-  let camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  let renderer = new THREE.WebGLRenderer();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  document.body.appendChild(renderer.domElement);
-
-  let ground = new THREE.Mesh(new THREE.BoxGeometry(50, 1, 50), new THREE.MeshBasicMaterial({ color: 0x228B22 }));
-  ground.position.y = -0.5;
-  scene.add(ground);
-
-  let human = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshBasicMaterial({ color: 0xffa500 }));
-  human.position.y = 1;
-  scene.add(human);
-
-  camera.position.set(0, 5, 10);
-  camera.lookAt(human.position);
-
-  let moveX = 0, moveZ = 0;
-  let velocityY = 0;
-  let isOnGround = true;
-
-  const joystick = document.getElementById('joystickArea');
-  const stick = document.getElementById('stick');
-
-  joystick.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    const touch = e.touches[0];
-    const rect = joystick.getBoundingClientRect();
-    const dx = touch.clientX - (rect.left + rect.width / 2);
-    const dy = touch.clientY - (rect.top + rect.height / 2);
-    const maxDist = 40;
-    const dist = Math.min(Math.sqrt(dx * dx + dy * dy), maxDist);
-    const angle = Math.atan2(dy, dx);
-
-    const stickX = 25 + dist * Math.cos(angle);
-    const stickY = 25 + dist * Math.sin(angle);
-    stick.style.left = `${stickX}px`;
-    stick.style.top = `${stickY}px`;
-
-    moveX = (dist / maxDist) * Math.cos(angle);
-    moveZ = (dist / maxDist) * Math.sin(angle);
-  });
-
-  joystick.addEventListener('touchend', () => {
-    moveX = 0;
-    moveZ = 0;
-    stick.style.left = '25px';
-    stick.style.top = '25px';
-  });
-
-  document.getElementById('jumpBtn').addEventListener('click', () => {
-    if (isOnGround) {
-      velocityY = 0.15;
-      isOnGround = false;
-    }
-  });
-
-  function animate() {
-    requestAnimationFrame(animate);
-    human.position.x += moveX * 0.1;
-    human.position.z += moveZ * 0.1;
-
-    if (!isOnGround) {
-      velocityY -= 0.01;
-      human.position.y += velocityY;
-      if (human.position.y <= 1) {
-        human.position.y = 1;
-        velocityY = 0;
-        isOnGround = true;
-      }
+    function showUserInfo(fullName, username) {
+      const infoBox = document.getElementById('user-info');
+      infoBox.textContent = ${fullName} (@${username});
+      infoBox.style.display = 'block';
     }
 
-    camera.position.x = human.position.x;
-    camera.position.z = human.position.z + 10;
-    camera.position.y = human.position.y + 5;
-    camera.lookAt(human.position);
+    // Проверяем, есть ли сохранённые данные
+    const savedName = localStorage.getItem('tg_fullName');
+    const savedUsername = localStorage.getItem('tg_username');
 
-    renderer.render(scene, camera);
-  }
+    if (savedName && savedUsername) {
+      showUserInfo(savedName, savedUsername);
+    }
 
-  animate();
+    // Если открыто в Telegram и есть данные пользователя — сохраняем и показываем
+    if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+      const user = tg.initDataUnsafe.user;
+      const fullName = user.first_name + (user.last_name ? ' ' + user.last_name : '');
+      const username = user.username || 'без username';
 
-  window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  });
-</script>
+      // Запоминаем в LocalStorage
+      localStorage.setItem('tg_fullName', fullName);
+      localStorage.setItem('tg_username', username);
+
+      showUserInfo(fullName, username);
+    } else if (!savedName || !savedUsername) {
+      // Если нет данных и не в Telegram — предупреждаем
+      document.getElementById('warning').textContent = 'Пожалуйста, откройте это приложение через Telegram';
+    }
+  </script>
 </body>
 </html>
